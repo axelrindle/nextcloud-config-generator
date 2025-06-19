@@ -1,18 +1,19 @@
 package docker
 
 import (
+	"archive/tar"
+	"bufio"
 	"bytes"
 	"context"
 	"embed"
 	"io"
+	"io/fs"
 
 	"github.com/axelrindle/nc-cfg-gen/nextcloud"
 	t "github.com/axelrindle/nc-cfg-gen/types"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
-	"github.com/moby/go-archive"
-	"github.com/moby/go-archive/compression"
 )
 
 //go:embed rootfs
@@ -28,6 +29,31 @@ type Docker struct {
 
 type ErrorFunc func() *t.Error
 
+func makeBuildContext() (io.Reader, error) {
+	b := bytes.Buffer{}
+	w := bufio.NewWriter(&b)
+	t := tar.NewWriter(w)
+
+	sub, err := fs.Sub(rootfs, "rootfs")
+	if err != nil {
+		return nil, err
+	}
+
+	if err = t.AddFS(sub); err != nil {
+		return nil, err
+	}
+
+	if err = w.Flush(); err != nil {
+		return nil, err
+	}
+
+	if err = t.Close(); err != nil {
+		return nil, err
+	}
+
+	return bufio.NewReader(&b), nil
+}
+
 func makeDockerClient() (*client.Client, *t.Error) {
 	client, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
@@ -38,17 +64,14 @@ func makeDockerClient() (*client.Client, *t.Error) {
 }
 
 func (b *Docker) buildImage() *t.Error {
-	reader, err := archive.TarWithOptions("docker/setup", &archive.TarOptions{
-		Compression: compression.Gzip,
-	})
+	context, err := makeBuildContext()
 	if err != nil {
 		return &t.Error{Err: err, Context: "Build Context"}
 	}
 
-	resp, err := b.client.ImageBuild(b.ctx, reader, types.ImageBuildOptions{
-		Tags:       []string{"nc-cfg-gen"},
-		Dockerfile: "Dockerfile",
-		NoCache:    false,
+	resp, err := b.client.ImageBuild(b.ctx, context, types.ImageBuildOptions{
+		Tags:    []string{"nc-cfg-gen"},
+		NoCache: false,
 	})
 	if err != nil {
 		return &t.Error{Err: err, Context: "Build Image"}
