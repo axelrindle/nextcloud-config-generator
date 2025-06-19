@@ -1,0 +1,21 @@
+version: '3'
+
+vars:
+  OUTPUT_DIRECTORY: dist
+  OUTPUT_FILE_NAME: nc-cfg-gen
+  OUTPUT_FILE_SUFFIX:
+
+tasks:
+  default:
+    deps:
+      - build
+
+  clean:
+    cmd: rm -rf "{{.OUTPUT_DIRECTORY}}/"
+    silent: true
+
+  build:
+    cmd: go build -v -ldflags="-w -s" -o "{{.OUTPUT_DIRECTORY}}/{{.OUTPUT_FILE_NAME}}{{.OUTPUT_FILE_SUFFIX}}"
+
+  test:
+    cmd: go test -v -cover -coverprofile=coverage.out ./...
