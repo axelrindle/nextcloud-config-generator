@@ -13,6 +13,10 @@ func Execute() error {
 	return rootCmd.Execute()
 }
 
+func Usage() string {
+	return rootCmd.UsageString()
+}
+
 func init() {
 	cobra.OnInitialize()
 
